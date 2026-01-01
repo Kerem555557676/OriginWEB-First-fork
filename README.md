@@ -1,2 +1,5 @@
 # OriginWEB
-OriginWEB - OOSP
+OriginWEB
+OOSP - OriginWEB Open Source Project
+
+It is not a real operating system.
