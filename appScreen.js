@@ -102,7 +102,8 @@ function pointerDownPreviewIconOnBlur(e) {
     startYMovingIcon = e.clientY - phoneRect.top;
 }
 
-function startDrag(icon, e) {
+async function startDrag(icon, e) {
+    if (dragTarget) await pointerUpIconWhileDragIconNoAnim();
     dragTarget = icon;
     isDragging = true;
 
@@ -225,7 +226,7 @@ function handleAutoScroll(x) {
     }
 }
 
-async function finishDragAnimation({removeBlur = false}) {
+async function finishDragAnimation({removeBlur = false}, timeout = 300) {
     clearInterval(autoScrollInterval);
     isDragging = false;
 
@@ -237,7 +238,6 @@ async function finishDragAnimation({removeBlur = false}) {
 
     const offsetW = (rect.width * 0.2) / 2;
     const offsetH = (rect.height * 0.2) / 2;
-    void preview.offsetHeight;
 
     preview.animate(
         [
@@ -249,13 +249,13 @@ async function finishDragAnimation({removeBlur = false}) {
             },
         ],
         {
-            duration: 300,
+            duration: timeout,
             easing: "ease",
             fill: "forwards",
         }
     );
 
-    timeOutRemovePreviewIcon = setTimeout(async () => {
+    async function timeoutF() {
         preview?.remove();
 
         await updateAppPosNoRemove(() => {
@@ -272,21 +272,25 @@ async function finishDragAnimation({removeBlur = false}) {
                     {transform: "scale(1)"},
                 ],
                 {
-                    duration: 600,
+                    duration: timeout * 2,
                     easing: "ease-out",
                 }
             );
         });
 
-        if (removeBlur) allApp.classList.remove("scaleForMovingApp");
-
         dragTarget.style.visibility = "";
         dragTarget = null;
         preview = null;
+    }
+
+    if (timeout) {
+        timeOutRemovePreviewIcon = setTimeout(timeoutF, timeout);
+
+        if (removeBlur) allApp.classList.remove("scaleForMovingApp");
 
         cleanupEmptyScreens();
         saveAppLayout();
-    }, 300);
+    } else await timeoutF();
 
     document.removeEventListener("pointermove", pointerMovingIcon);
     document.removeEventListener("pointerup", pointerUpIconWhileDragIcon);
@@ -334,6 +338,17 @@ async function pointerUpIconWhileDragIconForBlurApp(e) {
     preview.querySelector(".containerPreview")?.classList.add("hidden");
 
     await finishDragAnimation({removeBlur: true});
+}
+async function pointerUpIconWhileDragIconNoAnim(e) {
+    if (holdTimer) clearTimeout(holdTimer);
+    if (!dragTarget) return;
+
+    blurAllApp.removeEventListener("pointerup", pointerUpIconWhileDragIconForBlurApp);
+    blurAllApp.style.pointerEvents = "";
+
+    preview.querySelector(".containerPreview")?.classList.add("hidden");
+
+    await finishDragAnimation({removeBlur: true}, 0);
 }
 
 let screenCounter = 2;
@@ -403,7 +418,15 @@ function addApps(name = "none", appid = "none", background = "", anim = false) {
         tb_system("maximum is 60 applications");
         return;
     }
-
+    if (currentOpeningElApp) {
+        addScriptForCloseApp(() => {
+            setTimeout(() => {
+                addApps(name, appid, background, anim);
+            }, 700 * speed);
+        });
+        closeApp();
+        return;
+    }
     if (!appid) appid = "app_" + Date.now();
 
     let originalId = appid;
@@ -517,7 +540,7 @@ function addApps(name = "none", appid = "none", background = "", anim = false) {
     // 6️⃣ Lưu & cập nhật
     saveAppLayout();
     if (anim)
-        updateAppPositions(() => {
+        updateAppPosNoRemove(() => {
             const layers = findWaterDrop(icon, icon.parentElement);
             addAnimationWaterDrop(icon, layers);
 
@@ -526,8 +549,8 @@ function addApps(name = "none", appid = "none", background = "", anim = false) {
                 duration: 600,
                 easing: "ease-out",
             });
-        });
-    else updateAppPositions();
+        }, icon.parentElement);
+    else updateAppPosNoRemove(() => {}, icon.parentElement);
 }
 
 // ===========================
@@ -562,8 +585,8 @@ function removeApp(appId) {
     isDragging = false;
 
     timeOutRemovePreviewIcon = setTimeout(() => {
-        if (preview) preview.remove();
-        preview = null;
+        preview?.remove();
+        dragTarget = preview = null;
         allApp.classList.remove("scaleForMovingApp");
 
         cleanupEmptyScreens();
@@ -860,19 +883,14 @@ async function updateAppPositions(script = function () {}) {
         const posX = isLeft ? "left" : "right";
         const offsetX = isLeft ? Math.round(relLeft) : Math.round(innerW - (relLeft + iconW));
 
-        let isTop = 0;
-        const posY = isTop ? "top" : "bottom";
-        const offsetY = isTop ? Math.round(relTop) : Math.round(innerH - (relTop + iconH));
-        const translateY = isTop ? "-50%" : "50%";
-
         const cs = getComputedStyle(icon);
         const bg = cs.background;
 
         await setBackgroundColor(icon, cs.backgroundImage.replace(/url\(["']?(.+?)["']?\)/, "$1"));
 
         cssRules += `
-            #${appId}{ ${posX}:${offsetX}px; ${posY}:${offsetY}px; width:${iconW}px; height:${iconH}px; }
-            #${appId}.open{ ${posX}:0; ${posY}:50%; translate:0 ${translateY}; height: 100%; width: 100%; }
+            #${appId}{ ${posX}:${offsetX}px; ${top}:${Math.round(relTop)}px; width:${iconW}px; height:${iconH}px; }
+            #${appId}.open{ ${posX}:0; ${top}:50%; translate:0 -50%; height: 100%; width: 100%; }
             #${appId}::before{ background:${bg}; }
         `;
     }
@@ -894,7 +912,7 @@ function upsertCssRule(sheet, selector, cssText) {
     sheet.insertRule(`${selector}{${cssText}}`, sheet.cssRules.length);
 }
 
-async function updateAppPosNoRemove(script = function () {}) {
+async function updateAppPosNoRemove(script = function () {}, screen = currentAppScreen) {
     const phone = document.getElementById("allAppIconScreen");
     const phoneRect = phone.getBoundingClientRect();
 
@@ -914,7 +932,7 @@ async function updateAppPosNoRemove(script = function () {}) {
         })();
     const sheet = styleTag.sheet;
 
-    const allIcons = [...currentAppScreen.querySelectorAll(".iconApp"), ...favApp.querySelectorAll(".iconApp")];
+    const allIcons = [...screen.querySelectorAll(".iconApp"), ...favApp.querySelectorAll(".iconApp")];
 
     return new Promise((resolve) => {
         requestAnimationFrame(() => {
@@ -931,25 +949,22 @@ async function updateAppPosNoRemove(script = function () {}) {
                 const posX = isLeft ? "left" : "right";
                 const offsetX = isLeft ? relLeft : innerW - (relLeft + iconW);
 
-                const posY = "bottom";
                 const offsetY = innerH - (relTop + iconH);
 
                 upsertCssRule(
                     sheet,
                     `#${appId}`,
-                    `${posX}:${offsetX}px; ${posY}:${offsetY}px; width:${iconW}px; height:${iconH}px;`
+                    `${posX}:${offsetX}px; bottom:${offsetY}px; width:${iconW}px; height:${iconH}px;`
                 );
 
                 upsertCssRule(
                     sheet,
                     `#${appId}.open`,
-                    `${posX}:0%; ${posY}:50%; translate:0 50%; height: 100%; width: 100%;`
+                    `${posX}:0%; bottom:50%; translate:0 50%; height: 100%; width: 100%;`
                 );
             });
 
-            if (script) {
-                script();
-            }
+            if (script) script();
 
             resolve();
         });

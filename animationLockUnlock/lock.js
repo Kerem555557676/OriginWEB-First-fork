@@ -474,6 +474,8 @@ function showLockScreen() {
     containerNotif.style.display = "none";
 
     islands.classList.add("Ihidden");
+
+    if (allAppScreen.classList.contains("scaleForEdit")) allAppScreen.classList.remove("scaleForEdit");
 }
 
 function hiddenLockScreen() {

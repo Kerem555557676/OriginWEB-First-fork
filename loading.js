@@ -4,14 +4,14 @@ window.addEventListener("DOMContentLoaded", async () => {
         const day = now.getDate();
         const month = now.getMonth();
 
-        if (month === 0 && day >= 1 && day <= 3) {
-            addNotification(
-                "./originData/iconPacks/origin_icon/calendar.png",
-                "calendar",
-                "Happy New Year " + now.getFullYear() + "! 🎉🎉🎉",
-                "app_none4"
-            );
-        }
+        //if (month === 0 && day >= 1 && day <= 3) {
+        //    addNotification(
+        //        "./originData/iconPacks/origin_icon/calendar.png",
+        //        "calendar",
+        //        "Happy New Year " + now.getFullYear() + "! 🎉🎉🎉",
+        //        "app_none4"
+        //    );
+        // }
     }
     // === hình nền đã lưu ===
     const wallpaperLock = localStorage.getItem("wallpaperLock");
@@ -97,7 +97,20 @@ window.addEventListener("DOMContentLoaded", async () => {
     loadAppLayout();
     cleanupEmptyScreens();
     buildDots();
-    updateAppPositions();
+    updateAppPositions(() => {
+        setTimeout(() => {
+            const loadingScreen = document.querySelector(".loadingScreen");
+
+            loadingScreen.animate([{opacity: 1}, {opacity: 0}], {
+                duration: 800,
+                easing: "ease",
+                fill: "forwards",
+            }).onfinish = () => {
+                loadingScreen.remove();
+            };
+        }, 1500);
+    });
+    // openEditorHomeScreen();
 
     //showLockScreen();
     if (doubleTapOnOff) {
@@ -343,7 +356,6 @@ window.addEventListener("DOMContentLoaded", async () => {
         if (localStorage.getItem("fingerprint") == "1") {
             const el = document.getElementById("toggle_fingerprint");
             el.classList.add("active");
-            fingerprintOnOff = 1;
             fingerBtn.classList.remove("displayN");
             document.getElementById("fingerBtn2").classList.remove("displayN");
             document.getElementById("ani_fingerprint").classList.remove("displayN");

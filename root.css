@@ -323,3 +323,13 @@ select.right .selectBoxs {
     font-size: 13px;
     pointer-events: none;
 }
+
+left {
+    display: flex;
+    width: 50%;
+}
+right {
+    display: flex;
+    width: 50%;
+    justify-content: end;
+}

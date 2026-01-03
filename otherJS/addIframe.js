@@ -96,3 +96,7 @@ function runCmdFromFile(file) {
     };
     reader.readAsText(file);
 }
+
+//function findIsland(type, id) {
+//   if(islandList.main[type]) {
+//}
